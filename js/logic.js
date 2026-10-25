@@ -250,7 +250,135 @@ export function buildClusters(poles, radiusMeters = COMPANION_RADIUS_METERS) {
     });
   }
 
-  clusters.sort((a, b) => a.name.localeCompare(b.name, "zh-Hant-HK") || a.id.localeCompare(b.id));
+  orderClustersAlongCorridor(clusters);
+  return clusters;
+}
+
+/**
+ * Picker order: 沙田 → 西貢 along the corridor.
+ *
+ * Spine is 299X outbound (API sequence, 沙田市中心 → 西貢).
+ * 99 outbound (恆安 → 西貢) and 580 inbound (沙田市中心 → 西沙灣) are the
+ * other toward-Sai-Kung journeys. Return directions are reversed, then
+ * stops that are not already on the spine are inserted in that route's
+ * own order, packed into the gap beside the shared stop they branch from
+ * so a side road does not get mixed through the main road.
+ */
+const CORRIDOR_PASSES = [
+  { route: "299X", dir: "O", reverse: false, spine: true },
+  { route: "99", dir: "O", reverse: false },
+  { route: "580", dir: "I", reverse: false },
+  { route: "299X", dir: "I", reverse: true },
+  { route: "99", dir: "I", reverse: true },
+  { route: "580", dir: "O", reverse: true },
+];
+
+function sequenceOn(cluster, route, dir) {
+  const matches = cluster.bindings.filter((binding) => binding.route === route && binding.dir === dir);
+  if (!matches.length) return null;
+  const primary = matches.filter((binding) => String(binding.serviceType) === "1");
+  const use = primary.length ? primary : matches;
+  return Math.min(...use.map((binding) => Number(binding.seq) || 0));
+}
+
+function stopsAlong(clusters, route, dir, reverse) {
+  const found = [];
+  for (const cluster of clusters) {
+    const seq = sequenceOn(cluster, route, dir);
+    if (seq == null) continue;
+    found.push({ id: cluster.id, seq });
+  }
+  const maxSeq = found.reduce((max, item) => Math.max(max, item.seq), 0);
+  return found
+    .map((item) => ({
+      id: item.id,
+      key: reverse ? maxSeq + 1 - item.seq : item.seq,
+    }))
+    .sort((a, b) => a.key - b.key || a.id.localeCompare(b.id, "zh-Hant-HK"));
+}
+
+function packStops(pos, run, leftPos, rightPos) {
+  if (!run.length) return;
+  if (leftPos == null && rightPos == null) {
+    const base = Math.max(0, ...pos.values(), 0) + 1;
+    run.forEach((item, index) => pos.set(item.id, base + index));
+    return;
+  }
+  if (leftPos == null) {
+    const earlier = [...pos.values()].filter((value) => value < rightPos);
+    const previous = earlier.length ? Math.max(...earlier) : rightPos - 1;
+    const step = Math.min(0.001, (rightPos - previous) / (run.length + 1));
+    run.forEach((item, index) => pos.set(item.id, rightPos - step * (run.length - index)));
+    return;
+  }
+  const gap = rightPos == null || !(rightPos > leftPos) ? 1 : rightPos - leftPos;
+  const step = Math.min(0.001, gap / (run.length + 1));
+  run.forEach((item, index) => pos.set(item.id, leftPos + step * (index + 1)));
+}
+
+function placeSequence(pos, entries) {
+  const pending = entries.filter((entry) => !pos.has(entry.id));
+  const anchors = [];
+  entries.forEach((entry, index) => {
+    if (pos.has(entry.id)) anchors.push(index);
+  });
+  if (!anchors.length) {
+    packStops(pos, pending, null, null);
+    return;
+  }
+
+  packStops(
+    pos,
+    entries.slice(0, anchors[0]).filter((entry) => !pos.has(entry.id)),
+    null,
+    pos.get(entries[anchors[0]].id),
+  );
+
+  for (let index = 0; index < anchors.length - 1; index += 1) {
+    const left = anchors[index];
+    const right = anchors[index + 1];
+    packStops(
+      pos,
+      entries.slice(left + 1, right).filter((entry) => !pos.has(entry.id)),
+      pos.get(entries[left].id),
+      pos.get(entries[right].id),
+    );
+  }
+
+  const last = anchors[anchors.length - 1];
+  const lastPos = pos.get(entries[last].id);
+  const later = [...pos.values()].filter((value) => value > lastPos);
+  packStops(
+    pos,
+    entries.slice(last + 1).filter((entry) => !pos.has(entry.id)),
+    lastPos,
+    later.length ? Math.min(...later) : null,
+  );
+}
+
+export function orderClustersAlongCorridor(clusters) {
+  const pos = new Map();
+  for (const pass of CORRIDOR_PASSES) {
+    const entries = stopsAlong(clusters, pass.route, pass.dir, pass.reverse);
+    if (pass.spine) {
+      const used = new Set();
+      for (const entry of entries) {
+        let key = entry.key;
+        while (used.has(key)) key += 0.0001;
+        used.add(key);
+        if (!pos.has(entry.id)) pos.set(entry.id, key);
+      }
+    } else {
+      placeSequence(pos, entries);
+    }
+  }
+
+  clusters.sort((a, b) => {
+    const left = pos.has(a.id) ? pos.get(a.id) : Number.POSITIVE_INFINITY;
+    const right = pos.has(b.id) ? pos.get(b.id) : Number.POSITIVE_INFINITY;
+    if (left !== right) return left - right;
+    return a.name.localeCompare(b.name, "zh-Hant-HK") || a.id.localeCompare(b.id);
+  });
   return clusters;
 }
 
