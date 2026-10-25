@@ -261,3 +261,46 @@ test("formats Hong Kong clock and up to three ETAs", () => {
   const none = presentEtas([{ eta: null, rmk_tc: "", dest_tc: "西貢" }], now);
   assert.equal(none.emptyText, "暫無班次");
 });
+
+test("lists stops from Sha Tin toward Sai Kung, with branches beside the join", () => {
+  const stop = (name, lat, bindings) => pole({
+    stop: name,
+    nameTc: name,
+    lat,
+    lon: 114.2,
+    bindings,
+  });
+  const on = (route, dir, seq) => ({ route, dir, serviceType: "1", seq });
+  const ordered = buildClusters([
+    stop("沙田市中心", 22.30, [on("299X", "O", 1), on("580", "I", 1)]),
+    stop("好運中心", 22.31, [on("580", "I", 2)]),
+    stop("麗豪酒店", 22.32, [on("299X", "O", 2)]),
+    stop("錦駿苑", 22.33, [on("299X", "O", 9), on("580", "I", 5)]),
+    stop("恆安", 22.34, [on("99", "O", 1)]),
+    stop("樟木頭帝琴灣", 22.35, [on("299X", "O", 10), on("99", "O", 7), on("580", "I", 6), on("299X", "I", 10)]),
+    stop("西澳", 22.36, [on("299X", "I", 9)]),
+    stop("泥涌", 22.37, [on("299X", "O", 11)]),
+    stop("輋下", 22.38, [on("299X", "O", 12), on("580", "I", 8), on("299X", "I", 8)]),
+    stop("馬牯纜", 22.39, [on("299X", "O", 13), on("580", "I", 9)]),
+    stop("西沙灣", 22.40, [on("580", "I", 11)]),
+    stop("大洞", 22.41, [on("299X", "O", 14)]),
+    stop("西貢總站", 22.42, [on("299X", "O", 25), on("99", "O", 24), on("299X", "I", 1)]),
+  ]).map((cluster) => cluster.name);
+
+  const at = (name) => ordered.indexOf(name);
+  const before = (earlier, later) => {
+    assert.ok(at(earlier) !== -1 && at(later) !== -1 && at(earlier) < at(later), `${earlier} should come before ${later}: ${ordered.join("、")}`);
+  };
+  before("沙田市中心", "好運中心");
+  before("好運中心", "麗豪酒店");
+  before("麗豪酒店", "錦駿苑");
+  before("錦駿苑", "恆安");
+  before("恆安", "樟木頭帝琴灣");
+  before("樟木頭帝琴灣", "西澳");
+  before("西澳", "泥涌");
+  before("泥涌", "輋下");
+  before("馬牯纜", "西沙灣");
+  before("西沙灣", "大洞");
+  before("大洞", "西貢總站");
+  assert.notEqual(ordered[0], "西澳");
+});
