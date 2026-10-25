@@ -1,6 +1,6 @@
 {
-  "name": "Rachel Bus ETA",
-  "short_name": "Bus ETA",
+  "name": "Pastorachelo’s Bus ETA",
+  "short_name": "Pastorachelo’s Bus ETA",
   "description": "九巴 299X、99 同城巴 580 的到站時間。",
   "lang": "zh-HK",
   "start_url": "./",
