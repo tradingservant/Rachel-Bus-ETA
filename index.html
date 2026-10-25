@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="九巴 299X、99 同城巴 580 的到站時間。">
+  <meta name="theme-color" content="#111111">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bus ETA">
+  <title>Rachel Bus ETA</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="screen">
+    <header class="top">
+      <div class="date-row">
+        <span id="date">—</span>
+        <span id="weekday">—</span>
+      </div>
+      <div id="clock" class="clock">--:--</div>
+    </header>
+    <main class="board">
+      <button id="stop-button" class="stop-button" type="button">
+        <svg class="pin" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M12 2.2a6.8 6.8 0 0 0-6.8 6.8c0 5.1 6.8 12.8 6.8 12.8s6.8-7.7 6.8-12.8A6.8 6.8 0 0 0 12 2.2zm0 9.2a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8z"/>
+        </svg>
+        <span id="stop-label" class="stop-label">載入車站…</span>
+        <span class="change">更改</span>
+      </button>
+      <p id="status" class="status" hidden></p>
+      <div id="routes" class="routes" aria-live="polite"></div>
+    </main>
+    <footer class="foot">
+      <button id="refresh" class="refresh" type="button">
+        <span class="brand">Rachel Bus ETA</span>
+        <span id="updated">更新 —</span>
+      </button>
+    </footer>
+  </div>
+
+  <div id="picker" class="picker" hidden>
+    <div class="picker-bar">
+      <div>
+        <div class="picker-title">選擇車站</div>
+        <div id="picker-count" class="picker-count"></div>
+      </div>
+      <button id="picker-close" class="done" type="button">完成</button>
+    </div>
+    <div class="search-wrap">
+      <input id="search" type="search" inputmode="search" placeholder="搜尋車站名稱" autocomplete="off" enterkeyhint="search" aria-label="搜尋車站名稱">
+    </div>
+    <ul id="stop-list" class="stop-list"></ul>
+    <p class="credit">到站時間來自運輸署公開數據（九巴、城巴）。只顯示 299X、99、580。</p>
+  </div>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
