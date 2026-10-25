@@ -38,6 +38,8 @@ const els = {
   routes: document.querySelector("#routes"),
   updated: document.querySelector("#updated"),
   refresh: document.querySelector("#refresh"),
+  pull: document.querySelector("#pull"),
+  pullLabel: document.querySelector("#pull-label"),
   picker: document.querySelector("#picker"),
   pickerClose: document.querySelector("#picker-close"),
   search: document.querySelector("#search"),
@@ -503,6 +505,7 @@ async function refreshEta() {
   }
   state.loadingEta = false;
   state.lastUpdated = new Date();
+  els.updated.textContent = `更新 ${hongKongClock(state.lastUpdated).clock}`;
   const failedAll = state.slots.length > 0 && state.slots.every((slot) => state.slotErrors.get(`${slot.route}|${slot.dir}`));
   setStatus(failedAll ? "暫時未能取得班次。請稍後再試。" : "");
   renderRoutes(state.lastUpdated);
@@ -529,12 +532,124 @@ function bindUi() {
     const age = state.lastUpdated ? Date.now() - state.lastUpdated.getTime() : Infinity;
     if (age > 30_000) refreshEta();
   });
+  bindPullToRefresh();
+}
+
+const PULL_TRIGGER = 64;
+const PULL_MAX = 112;
+const PULL_HOLD = 48;
+
+function scrolledToTop() {
+  const top = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+  return top <= 1;
+}
+
+function canManualRefresh() {
+  return !state.loadingIndex && !state.loadingEta && Boolean(selectedCluster());
+}
+
+function setPull(distance, mode) {
+  const pull = els.pull;
+  if (!pull) return;
+  const height = Math.max(0, Math.min(PULL_MAX, distance));
+  pull.style.setProperty("--pull", `${height}px`);
+  pull.classList.toggle("is-dragging", mode === "pulling" || mode === "ready");
+  pull.classList.toggle("is-refreshing", mode === "refreshing");
+  if (mode === "refreshing") {
+    pull.style.removeProperty("--turn");
+    els.pullLabel.textContent = "更新中…";
+  } else if (mode === "ready") {
+    pull.style.setProperty("--turn", "180deg");
+    els.pullLabel.textContent = "放開更新";
+  } else if (height > 8) {
+    pull.style.setProperty("--turn", `${Math.min(height / PULL_TRIGGER, 1) * 180}deg`);
+    els.pullLabel.textContent = "拉下更新";
+  } else {
+    pull.style.setProperty("--turn", "0deg");
+    els.pullLabel.textContent = "拉下更新";
+  }
+}
+
+function bindPullToRefresh() {
+  let startY = 0;
+  let startX = 0;
+  let armed = false;
+  let dragging = false;
+  let distance = 0;
+  let gesture = 0;
+
+  const pickerOpen = () => !els.picker.hidden;
+
+  document.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 1 || pickerOpen() || !scrolledToTop()) {
+      armed = false;
+      return;
+    }
+    armed = true;
+    dragging = false;
+    distance = 0;
+    startY = event.touches[0].clientY;
+    startX = event.touches[0].clientX;
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (event) => {
+    if (!armed || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const dy = touch.clientY - startY;
+    const dx = touch.clientX - startX;
+    if (!dragging && dy <= 10) {
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) armed = false;
+      return;
+    }
+    if (dy <= 0 || !scrolledToTop()) {
+      armed = false;
+      dragging = false;
+      distance = 0;
+      setPull(0, "idle");
+      return;
+    }
+    if (event.cancelable) event.preventDefault();
+    dragging = true;
+    distance = Math.min(PULL_MAX, dy * 0.5);
+    const refreshing = state.loadingEta;
+    setPull(distance, refreshing ? "refreshing" : distance >= PULL_TRIGGER ? "ready" : "pulling");
+  }, { passive: false });
+
+  const endPull = () => {
+    if (!dragging) {
+      armed = false;
+      return;
+    }
+    const release = distance;
+    dragging = false;
+    armed = false;
+    distance = 0;
+    if (release < PULL_TRIGGER || !canManualRefresh()) {
+      setPull(0, "idle");
+      return;
+    }
+    const token = gesture + 1;
+    gesture = token;
+    setPull(PULL_HOLD, "refreshing");
+    refreshEta().finally(() => {
+      if (token !== gesture || dragging) return;
+      setPull(0, "idle");
+    });
+  };
+
+  document.addEventListener("touchend", endPull);
+  document.addEventListener("touchcancel", () => {
+    dragging = false;
+    armed = false;
+    distance = 0;
+    if (!state.loadingEta) setPull(0, "idle");
+  });
 }
 
 function registerSw() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(() => {});
   });
 }
 
@@ -548,6 +663,11 @@ function main() {
   bindUi();
   registerSw();
   loadIndex();
+  setInterval(() => {
+    if (document.visibilityState === "hidden" || !canManualRefresh()) return;
+    const age = state.lastUpdated ? Date.now() - state.lastUpdated.getTime() : Infinity;
+    if (age >= ETA_REFRESH_MS) refreshEta();
+  }, ETA_REFRESH_MS);
 }
 
 main();

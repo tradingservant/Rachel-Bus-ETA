@@ -13,6 +13,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -21,6 +22,7 @@ body {
   color: var(--ink);
   font-family: "PingFang HK", "PingFang TC", "Heiti TC", "Noto Sans TC", "Noto Sans CJK TC", sans-serif;
   font-feature-settings: "tnum" 1;
+  overscroll-behavior-y: none;
 }
 
 button, input {
@@ -71,6 +73,46 @@ button {
 .board {
   flex: 1 0 auto;
   padding: 0 16px 8px;
+}
+
+.pull {
+  --pull: 0px;
+  --turn: 0deg;
+  height: var(--pull);
+  margin: 0 -16px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  transition: height 0.22s ease;
+}
+
+.pull.is-dragging {
+  transition: none;
+}
+
+.pull-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  transform: rotate(var(--turn));
+}
+
+.pull.is-refreshing .pull-icon {
+  animation: pull-spin 0.7s linear infinite;
+}
+
+@keyframes pull-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pull { transition: none; }
+  .pull.is-refreshing .pull-icon { animation: none; }
 }
 
 .stop-button {
